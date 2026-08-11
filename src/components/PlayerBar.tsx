@@ -488,7 +488,11 @@ function PlayerOptionsMenu({
       </button>
       {open && menuPos && createPortal(
         <div ref={menuRef}
-          className="fixed w-56 rounded-xl overflow-hidden shadow-2xl border border-fg/10 z-50 animate-fade-in max-h-[80vh] overflow-y-auto"
+          // z-[70]: this menu is rendered via a portal to document.body,
+          // outside the Player Bar's own stacking context, so it needs to
+          // outrank the bar's `z-[60]` (see App.tsx) directly -- z-50 sat
+          // behind it and got visually clipped by the bar on mobile.
+          className="fixed w-56 rounded-xl overflow-hidden shadow-2xl border border-fg/10 z-[70] animate-fade-in max-h-[80vh] overflow-y-auto"
           style={{ top: menuPos.top, left: menuPos.left, background: 'linear-gradient(180deg, rgb(var(--fg-rgb) / 0.05), rgb(var(--fg-rgb) / 0) 30%), rgb(var(--surface-rgb) / 0.96)', backdropFilter: 'blur(16px)' }}>
           <div className="p-1">
             {/* Playback speed */}
