@@ -1,3 +1,4 @@
+import { useCallback, useRef, useState } from 'react';
 import type { Song } from '../types';
 import type { VirtualListHandle } from './VirtualList';
 
@@ -6,6 +7,22 @@ const LETTERS = ['#','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'
 function getLetterKey(title: string): string {
   const c = title.trim().charAt(0).toUpperCase();
   return /[A-Z]/.test(c) ? c : '#';
+}
+
+// Nearest letter to `fromIdx` (an index into LETTERS) that actually has a
+// song, searching outward in both directions at once. This is what lets
+// dragging over a letter with zero matches (e.g. no "X" titles) still land
+// on the closest real one instead of doing nothing -- same as Poweramp,
+// where the strip never "sticks" on an empty letter mid-drag.
+function nearestAvailableLetter(letterIndex: Map<string, number>, fromIdx: number): string | null {
+  if (letterIndex.size === 0) return null;
+  for (let d = 0; d < LETTERS.length; d++) {
+    const lo = fromIdx - d;
+    if (lo >= 0 && letterIndex.has(LETTERS[lo])) return LETTERS[lo];
+    const hi = fromIdx + d;
+    if (hi < LETTERS.length && letterIndex.has(LETTERS[hi])) return LETTERS[hi];
+  }
+  return null;
 }
 
 interface Props {
@@ -23,29 +40,117 @@ interface Props {
   indexOffset?: number;
 }
 
+// Feature (Poweramp-style A-Z scrubber): press-and-drag anywhere on the
+// strip to fly through the alphabet continuously (not just one tap per
+// letter), with a large floating letter "bubble" tracking the touch point
+// -- matching Poweramp's fast-scroll index. A plain tap still jumps
+// straight to that letter, since it's just a drag with zero movement.
 export function AlphaScrollBar({ songs, accentColor, listRef, indexOffset = 0 }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+  const activeLetterRef = useRef<string | null>(null);
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
+  const [bubbleY, setBubbleY] = useState(0);
+
   const letterIndex = new Map<string, number>();
   songs.forEach((song, i) => {
     const key = getLetterKey(song.title);
     if (!letterIndex.has(key)) letterIndex.set(key, i);
   });
 
+  const updateFromClientY = useCallback((clientY: number) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.height <= 0) return;
+    const rowH = rect.height / LETTERS.length;
+    const rawIdx = Math.max(0, Math.min(LETTERS.length - 1, Math.floor((clientY - rect.top) / rowH)));
+    // Bubble tracks the row directly under the finger (feels most
+    // responsive), independent of whether that exact letter has matches.
+    setBubbleY(rect.top + (rawIdx + 0.5) * rowH);
+
+    const letter = nearestAvailableLetter(letterIndex, rawIdx);
+    if (!letter || letter === activeLetterRef.current) return;
+    activeLetterRef.current = letter;
+    setActiveLetter(letter);
+    const idx = letterIndex.get(letter);
+    if (idx !== undefined) listRef.current?.scrollToIndex(idx + indexOffset);
+    // Subtle per-letter tick, mirroring Poweramp's haptic feedback while
+    // scrubbing. No-op (and harmless) on devices/browsers without it.
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try { navigator.vibrate(8); } catch { /* unsupported, ignore */ }
+    }
+  }, [letterIndex, listRef, indexOffset]);
+
+  const endDrag = useCallback(() => {
+    draggingRef.current = false;
+    activeLetterRef.current = null;
+    setActiveLetter(null);
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    draggingRef.current = true;
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    updateFromClientY(e.clientY);
+  }, [updateFromClientY]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    updateFromClientY(e.clientY);
+  }, [updateFromClientY]);
+
   return (
-    <div className="shrink-0 flex flex-col items-center py-2 select-none z-10 h-full min-h-0 overflow-y-auto overflow-x-hidden pr-0.5">
-      {LETTERS.map((letter) => {
-        const hasMatch = letterIndex.has(letter);
-        return (
-          <button
-            key={letter}
-            onClick={() => { const idx = letterIndex.get(letter); if (idx !== undefined) listRef.current?.scrollToIndex(idx + indexOffset); }}
-            disabled={!hasMatch}
-            className="w-7 h-7 shrink-0 flex items-center justify-center text-xs font-bold rounded transition-colors leading-none"
-            style={{ color: hasMatch ? accentColor : 'rgb(var(--fg-rgb) / 0.2)', cursor: hasMatch ? 'pointer' : 'default' }}
-          >
-            {letter}
-          </button>
-        );
-      })}
-    </div>
+    <>
+      <div
+        ref={containerRef}
+        className="shrink-0 flex flex-col items-center py-2 select-none z-10 h-full min-h-0 overflow-y-auto overflow-x-hidden pr-0.5 touch-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      >
+        {LETTERS.map((letter) => {
+          const hasMatch = letterIndex.has(letter);
+          const isActive = activeLetter === letter;
+          return (
+            <div
+              key={letter}
+              className="w-7 h-7 shrink-0 flex items-center justify-center text-xs font-bold rounded transition-colors leading-none"
+              style={{
+                color: hasMatch ? accentColor : 'rgb(var(--fg-rgb) / 0.2)',
+                backgroundColor: isActive ? 'rgb(var(--fg-rgb) / 0.12)' : 'transparent',
+              }}
+            >
+              {letter}
+            </div>
+          );
+        })}
+      </div>
+      {/* The floating letter bubble, Poweramp-style: large, centered on the
+          touch point, positioned just clear of the strip so it doesn't sit
+          under the finger. Fixed positioning (not relative to the list) so
+          it can float over song rows and the strip alike. */}
+      {activeLetter && (
+        <div
+          aria-hidden="true"
+          className="fixed pointer-events-none z-50 flex items-center justify-center rounded-2xl font-bold"
+          style={{
+            right: 'calc(env(safe-area-inset-right, 0px) + 40px)',
+            top: bubbleY,
+            transform: 'translateY(-50%)',
+            width: 72,
+            height: 72,
+            fontSize: 32,
+            color: 'rgb(var(--fg-rgb))',
+            backgroundColor: 'rgb(var(--elevated-rgb) / 0.95)',
+            boxShadow: '0 8px 24px rgb(0 0 0 / 0.35)',
+            backdropFilter: 'blur(6px)',
+          }}
+        >
+          {activeLetter}
+        </div>
+      )}
+    </>
   );
 }
