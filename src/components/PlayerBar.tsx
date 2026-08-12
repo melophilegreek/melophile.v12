@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Play, Pause, SkipBack, SkipForward,
   Volume2, VolumeX, Shuffle, Music, Library, ListMusic,
-  Mic2, Moon, Check, MoreVertical, Gauge, Repeat, Repeat1,
+  Mic2, Moon, Check, MoreVertical, Gauge, Repeat, Repeat1, ChevronDown,
 } from 'lucide-react';
 import type { RepeatMode, ShuffleMode, Song } from '../types';
 import { initialFor, placeholderBackground } from '../lib/artPlaceholder';
@@ -403,6 +403,12 @@ function PlayerOptionsMenu({
   const [open, setOpen] = useState(false);
   const [remaining, setRemaining] = useState('');
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [menuMaxHeight, setMenuMaxHeight] = useState<number | null>(null);
+  // Feature (accordion sections): each section (Playback speed / Sleep
+  // timer / Repeat) starts collapsed and only shows its options once its
+  // header is tapped, rather than dumping all three fully expanded into
+  // one long scrolling list.
+  const [expandedSection, setExpandedSection] = useState<'speed' | 'sleep' | 'repeat' | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const speedActive = rate !== 1;
@@ -410,7 +416,14 @@ function PlayerOptionsMenu({
   const repeatActive = repeatMode !== 'off';
   const anyActive = speedActive || sleepActive || repeatActive;
   const MENU_WIDTH = 224; // w-56
-  const MENU_HEIGHT_ESTIMATE = 420;
+  // Sections are collapsed by default now (see expandedSection state above),
+  // so the menu's typical open height is closer to ~180px than the ~420px
+  // it needed when everything rendered expanded at once.
+  const MENU_HEIGHT_ESTIMATE = 200;
+
+  useEffect(() => {
+    if (!open) setExpandedSection(null);
+  }, [open]);
 
   useEffect(() => {
     if (!sleepEndsAt) { setRemaining(''); return; }
@@ -447,11 +460,24 @@ function PlayerOptionsMenu({
         ? rect.left + rect.width / 2 - MENU_WIDTH / 2
         : rect.right - MENU_WIDTH;
       const clampedLeft = Math.max(8, Math.min(left, window.innerWidth - MENU_WIDTH - 8));
-      const spaceBelow = window.innerHeight - rect.bottom;
+      // FIX (menu rendering behind/under the Now Playing bar): this menu's
+      // trigger doesn't always live inside the bar -- on mobile it can also
+      // open from the "currently playing" row pinned near the top of the
+      // list, far above it. The bar reserves a fixed 176px (84px on
+      // desktop) at the bottom of the layout, which window.innerHeight
+      // knows nothing about, so a menu opening "below" the button would
+      // size itself against the full viewport and spill its lower half
+      // behind the bar. Use the bar's own top edge as the floor instead,
+      // so the menu always stops short of it.
+      const barEl = document.querySelector('[data-player-bar-root]');
+      const floor = barEl ? barEl.getBoundingClientRect().top - 8 : window.innerHeight;
+      const spaceBelow = floor - rect.bottom;
       const spaceAbove = rect.top;
       const openBelow = spaceBelow >= MENU_HEIGHT_ESTIMATE || spaceBelow >= spaceAbove;
       const top = openBelow ? rect.bottom + 8 : Math.max(8, rect.top - MENU_HEIGHT_ESTIMATE - 8);
+      const maxHeight = openBelow ? Math.max(120, floor - top) : Math.max(120, rect.top - 16);
       setMenuPos({ top, left: clampedLeft });
+      setMenuMaxHeight(maxHeight);
     };
     reposition();
     window.addEventListener('resize', reposition);
@@ -492,67 +518,98 @@ function PlayerOptionsMenu({
           // outside the Player Bar's own stacking context, so it needs to
           // outrank the bar's `z-[60]` (see App.tsx) directly -- z-50 sat
           // behind it and got visually clipped by the bar on mobile.
-          className="fixed w-56 rounded-xl overflow-hidden shadow-2xl border border-fg/10 z-[70] animate-fade-in max-h-[80vh] overflow-y-auto"
-          style={{ top: menuPos.top, left: menuPos.left, background: 'linear-gradient(180deg, rgb(var(--fg-rgb) / 0.05), rgb(var(--fg-rgb) / 0) 30%), rgb(var(--surface-rgb) / 0.96)', backdropFilter: 'blur(16px)' }}>
+          // max-h uses menuMaxHeight (clamped to the Now Playing bar's top
+          // edge in reposition() above) instead of a flat 80vh, so the menu
+          // scrolls internally rather than rendering behind the bar.
+          className="fixed w-56 rounded-xl overflow-hidden shadow-2xl border border-fg/10 z-[70] animate-fade-in overflow-y-auto"
+          style={{ top: menuPos.top, left: menuPos.left, maxHeight: menuMaxHeight ?? '80vh', background: 'linear-gradient(180deg, rgb(var(--fg-rgb) / 0.05), rgb(var(--fg-rgb) / 0) 30%), rgb(var(--surface-rgb) / 0.96)', backdropFilter: 'blur(16px)' }}>
           <div className="p-1">
             {/* Playback speed */}
-            <div className="px-3 pt-1.5 pb-1 flex items-center gap-1.5 text-xs text-fg/40">
-              <Gauge size={12} /> Playback speed
-            </div>
-            <div className="grid grid-cols-4 gap-1 px-2 pb-1.5">
-              {speedPresets.map((p) => (
-                <button key={p} onClick={() => onSetRate(p)}
-                  className="py-1.5 rounded-lg text-xs font-semibold tabular-nums transition-colors"
-                  style={{
-                    background: p === rate ? accentColor : 'rgb(var(--fg-rgb) / 0.06)',
-                    color: p === rate ? getContrastText(accentColor) : 'rgb(var(--fg-rgb) / 0.7)',
-                  }}>
-                  {p}&times;
-                </button>
-              ))}
-            </div>
-            <button onClick={() => onSetPreservePitch(!preservePitch)}
-              className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm text-fg/75 hover:bg-fg/10 transition-colors">
-              Preserve pitch
+            <button onClick={() => setExpandedSection((s) => (s === 'speed' ? null : 'speed'))}
+              className="w-full flex items-center justify-between gap-2 px-3 pt-1.5 pb-1 text-xs text-fg/40 hover:text-fg/60 transition-colors">
+              <span className="flex items-center gap-1.5"><Gauge size={12} /> Playback speed</span>
               <span className="flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold tabular-nums" style={{ color: preservePitch ? accentColor : 'rgb(var(--fg-rgb) / 0.35)' }}>
-                  {preservePitch ? 'On' : 'Off'}
-                </span>
-                <span className="w-8 h-4.5 rounded-full relative transition-colors shrink-0 border" style={{ background: preservePitch ? accentColor : 'rgb(var(--fg-rgb) / 0.08)', borderColor: preservePitch ? accentColor : 'rgb(var(--fg-rgb) / 0.25)' }}>
-                  <span className="absolute top-0.5 w-3.5 h-3.5 rounded-full transition-all" style={{ left: preservePitch ? 16 : 2, background: preservePitch ? 'rgb(var(--fg-rgb))' : 'rgb(var(--fg-rgb) / 0.85)' }} />
-                </span>
+                <span className="tabular-nums" style={{ color: speedActive ? accentColor : undefined }}>{rate}&times;</span>
+                <ChevronDown size={12} className="transition-transform" style={{ transform: expandedSection === 'speed' ? 'rotate(180deg)' : undefined }} />
               </span>
             </button>
+            {expandedSection === 'speed' && (
+              <>
+                <div className="grid grid-cols-4 gap-1 px-2 pb-1.5">
+                  {speedPresets.map((p) => (
+                    <button key={p} onClick={() => onSetRate(p)}
+                      className="py-1.5 rounded-lg text-xs font-semibold tabular-nums transition-colors"
+                      style={{
+                        background: p === rate ? accentColor : 'rgb(var(--fg-rgb) / 0.06)',
+                        color: p === rate ? getContrastText(accentColor) : 'rgb(var(--fg-rgb) / 0.7)',
+                      }}>
+                      {p}&times;
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => onSetPreservePitch(!preservePitch)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm text-fg/75 hover:bg-fg/10 transition-colors">
+                  Preserve pitch
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold tabular-nums" style={{ color: preservePitch ? accentColor : 'rgb(var(--fg-rgb) / 0.35)' }}>
+                      {preservePitch ? 'On' : 'Off'}
+                    </span>
+                    <span className="w-8 h-4.5 rounded-full relative transition-colors shrink-0 border" style={{ background: preservePitch ? accentColor : 'rgb(var(--fg-rgb) / 0.08)', borderColor: preservePitch ? accentColor : 'rgb(var(--fg-rgb) / 0.25)' }}>
+                      <span className="absolute top-0.5 w-3.5 h-3.5 rounded-full transition-all" style={{ left: preservePitch ? 16 : 2, background: preservePitch ? 'rgb(var(--fg-rgb))' : 'rgb(var(--fg-rgb) / 0.85)' }} />
+                    </span>
+                  </span>
+                </button>
+              </>
+            )}
 
             <div className="h-px bg-fg/10 my-1" />
 
             {/* Sleep timer */}
-            <div className="px-3 pt-1.5 pb-1 flex items-center justify-between text-xs text-fg/40">
+            <button onClick={() => setExpandedSection((s) => (s === 'sleep' ? null : 'sleep'))}
+              className="w-full flex items-center justify-between gap-2 px-3 pt-1.5 pb-1 text-xs text-fg/40 hover:text-fg/60 transition-colors">
               <span className="flex items-center gap-1.5"><Moon size={12} /> Sleep timer</span>
-              {remaining && <span>{remaining}</span>}
-            </div>
-            {sleepOptions.map((opt) => (
-              <button key={String(opt.value)} onClick={() => { onSetSleepTimer(opt.value); setOpen(false); }}
-                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-fg/10"
-                style={{ color: (opt.value === 'end-of-track' ? sleepEndOfTrack : false) ? accentColor : 'rgb(var(--fg-rgb) / 0.75)' }}>
-                {opt.label}
-                {opt.value === 'end-of-track' && sleepEndOfTrack && <Check size={13} />}
-              </button>
-            ))}
-            {sleepActive && (
-              <button onClick={() => { onSetSleepTimer(null); setOpen(false); }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors mt-1">
-                Turn off sleep timer
-              </button>
+              <span className="flex items-center gap-1.5">
+                {sleepActive && (
+                  <span style={{ color: accentColor }}>
+                    {remaining || (sleepEndOfTrack ? 'End of track' : '')}
+                  </span>
+                )}
+                <ChevronDown size={12} className="transition-transform" style={{ transform: expandedSection === 'sleep' ? 'rotate(180deg)' : undefined }} />
+              </span>
+            </button>
+            {expandedSection === 'sleep' && (
+              <>
+                {sleepOptions.map((opt) => (
+                  <button key={String(opt.value)} onClick={() => { onSetSleepTimer(opt.value); setOpen(false); }}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm transition-colors hover:bg-fg/10"
+                    style={{ color: (opt.value === 'end-of-track' ? sleepEndOfTrack : false) ? accentColor : 'rgb(var(--fg-rgb) / 0.75)' }}>
+                    {opt.label}
+                    {opt.value === 'end-of-track' && sleepEndOfTrack && <Check size={13} />}
+                  </button>
+                ))}
+                {sleepActive && (
+                  <button onClick={() => { onSetSleepTimer(null); setOpen(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors mt-1">
+                    Turn off sleep timer
+                  </button>
+                )}
+              </>
             )}
 
             <div className="h-px bg-fg/10 my-1" />
 
             {/* Feature (Repeat) */}
-            <div className="px-3 pt-1.5 pb-1 flex items-center gap-1.5 text-xs text-fg/40">
-              <Repeat size={12} /> Repeat
-            </div>
-            {([
+            <button onClick={() => setExpandedSection((s) => (s === 'repeat' ? null : 'repeat'))}
+              className="w-full flex items-center justify-between gap-2 px-3 pt-1.5 pb-1 text-xs text-fg/40 hover:text-fg/60 transition-colors">
+              <span className="flex items-center gap-1.5"><Repeat size={12} /> Repeat</span>
+              <span className="flex items-center gap-1.5">
+                <span style={{ color: repeatActive ? accentColor : undefined }}>
+                  {repeatMode === 'off' ? 'Off' : repeatMode === 'all' ? 'All' : 'One'}
+                </span>
+                <ChevronDown size={12} className="transition-transform" style={{ transform: expandedSection === 'repeat' ? 'rotate(180deg)' : undefined }} />
+              </span>
+            </button>
+            {expandedSection === 'repeat' && ([
               { mode: 'off' as RepeatMode, label: 'Off', icon: Repeat },
               { mode: 'all' as RepeatMode, label: 'Repeat all', icon: Repeat },
               { mode: 'one' as RepeatMode, label: 'Repeat one', icon: Repeat1 },

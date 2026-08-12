@@ -1985,7 +1985,7 @@ export default function App() {
             visible and tappable -- while the overlay's dark/blurred backdrop
             fills in uniformly behind the bar's rounded corners instead of the
             library view showing through them. */}
-        <div className="relative z-[60] h-[176px] md:h-[84px] shrink-0 px-2 pb-2">
+        <div data-player-bar-root className="relative z-[60] h-[176px] md:h-[84px] shrink-0 px-2 pb-2">
           <PlayerBar
             currentSong={playerState.currentSong}
             artUrl={artUrl}
