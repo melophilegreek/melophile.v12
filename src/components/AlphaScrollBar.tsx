@@ -31,7 +31,7 @@ export function AlphaScrollBar({ songs, accentColor, listRef, indexOffset = 0 }:
   });
 
   return (
-    <div className="flex flex-col items-center justify-center py-2 select-none z-10">
+    <div className="shrink-0 flex flex-col items-center py-2 select-none z-10 h-full min-h-0 overflow-y-auto overflow-x-hidden pr-0.5">
       {LETTERS.map((letter) => {
         const hasMatch = letterIndex.has(letter);
         return (
@@ -39,7 +39,7 @@ export function AlphaScrollBar({ songs, accentColor, listRef, indexOffset = 0 }:
             key={letter}
             onClick={() => { const idx = letterIndex.get(letter); if (idx !== undefined) listRef.current?.scrollToIndex(idx + indexOffset); }}
             disabled={!hasMatch}
-            className="w-5 h-5 flex items-center justify-center text-[10px] font-bold rounded transition-colors leading-none"
+            className="w-7 h-7 shrink-0 flex items-center justify-center text-xs font-bold rounded transition-colors leading-none"
             style={{ color: hasMatch ? accentColor : 'rgb(var(--fg-rgb) / 0.2)', cursor: hasMatch ? 'pointer' : 'default' }}
           >
             {letter}
