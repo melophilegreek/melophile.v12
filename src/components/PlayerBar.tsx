@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useId } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Play, Pause, SkipBack, SkipForward,
@@ -409,6 +409,15 @@ function PlayerOptionsMenu({
   // header is tapped, rather than dumping all three fully expanded into
   // one long scrolling list.
   const [expandedSection, setExpandedSection] = useState<'speed' | 'sleep' | 'repeat' | null>(null);
+  // FIX (large gap between menu and Now Playing bar): when the menu opens
+  // "above" its trigger (the usual case here, since the trigger sits high
+  // up in the tall mobile player bar), the top was placed using a flat
+  // MENU_HEIGHT_ESTIMATE (200px) — but the accordion starts fully
+  // collapsed, so the real rendered height is often much shorter, leaving
+  // dead space between the menu's bottom edge and the button/bar below it.
+  // Track which direction we opened in, then remeasure the actual DOM
+  // height once rendered (below) and re-anchor the bottom edge exactly.
+  const [openDirection, setOpenDirection] = useState<'below' | 'above'>('below');
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const speedActive = rate !== 1;
@@ -476,6 +485,7 @@ function PlayerOptionsMenu({
       const openBelow = spaceBelow >= MENU_HEIGHT_ESTIMATE || spaceBelow >= spaceAbove;
       const top = openBelow ? rect.bottom + 8 : Math.max(8, rect.top - MENU_HEIGHT_ESTIMATE - 8);
       const maxHeight = openBelow ? Math.max(120, floor - top) : Math.max(120, rect.top - 16);
+      setOpenDirection(openBelow ? 'below' : 'above');
       setMenuPos({ top, left: clampedLeft });
       setMenuMaxHeight(maxHeight);
     };
@@ -497,6 +507,23 @@ function PlayerOptionsMenu({
       window.removeEventListener('scroll', scrollClose, true);
     };
   }, [open, align]);
+
+  // FIX (large gap between menu and Now Playing bar), continued: once the
+  // menu has actually painted, snap its bottom edge to sit 8px above the
+  // trigger button instead of trusting the flat height estimate. Reruns
+  // whenever an accordion section is expanded/collapsed, since that changes
+  // the real height. The `Math.abs(...) > 1` guard stops this from looping
+  // — after the first correction, remeasuring gives the same answer.
+  useLayoutEffect(() => {
+    if (!open || openDirection !== 'above') return;
+    const btn = btnRef.current;
+    const menu = menuRef.current;
+    if (!btn || !menu) return;
+    const rect = btn.getBoundingClientRect();
+    const actualHeight = menu.offsetHeight;
+    const top = Math.max(8, rect.top - actualHeight - 8);
+    setMenuPos((prev) => (prev && Math.abs(prev.top - top) > 1 ? { ...prev, top } : prev));
+  }, [open, openDirection, expandedSection, menuPos]);
 
   const speedPresets = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
   const sleepOptions: { label: string; value: number | 'end-of-track' }[] = [
