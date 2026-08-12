@@ -479,12 +479,21 @@ function PlayerOptionsMenu({
       // behind the bar. Use the bar's own top edge as the floor instead,
       // so the menu always stops short of it.
       const barEl = document.querySelector('[data-player-bar-root]');
-      const floor = barEl ? barEl.getBoundingClientRect().top - 8 : window.innerHeight;
+      const barTop = barEl ? barEl.getBoundingClientRect().top : window.innerHeight;
+      const floor = barTop - 8;
+      // FIX (menu overlapping the top of its own Now Playing bar): on
+      // mobile this button lives inside the tall bar (near the album art),
+      // not above it -- so "space above" can't just be rect.top (the
+      // button's own position). That only clears the button, not the rest
+      // of the bar sitting above it. Use whichever is higher up (smaller),
+      // the button's top or the bar's own top, as the ceiling so an
+      // "above" menu clears the entire bar, not just the button within it.
+      const aboveCeiling = Math.min(rect.top, barTop);
       const spaceBelow = floor - rect.bottom;
-      const spaceAbove = rect.top;
+      const spaceAbove = aboveCeiling;
       const openBelow = spaceBelow >= MENU_HEIGHT_ESTIMATE || spaceBelow >= spaceAbove;
-      const top = openBelow ? rect.bottom + 8 : Math.max(8, rect.top - MENU_HEIGHT_ESTIMATE - 8);
-      const maxHeight = openBelow ? Math.max(120, floor - top) : Math.max(120, rect.top - 16);
+      const top = openBelow ? rect.bottom + 8 : Math.max(8, aboveCeiling - MENU_HEIGHT_ESTIMATE - 8);
+      const maxHeight = openBelow ? Math.max(120, floor - top) : Math.max(120, aboveCeiling - 16);
       setOpenDirection(openBelow ? 'below' : 'above');
       setMenuPos({ top, left: clampedLeft });
       setMenuMaxHeight(maxHeight);
@@ -520,8 +529,11 @@ function PlayerOptionsMenu({
     const menu = menuRef.current;
     if (!btn || !menu) return;
     const rect = btn.getBoundingClientRect();
+    const barEl = document.querySelector('[data-player-bar-root]');
+    const barTop = barEl ? barEl.getBoundingClientRect().top : rect.top;
+    const aboveCeiling = Math.min(rect.top, barTop);
     const actualHeight = menu.offsetHeight;
-    const top = Math.max(8, rect.top - actualHeight - 8);
+    const top = Math.max(8, aboveCeiling - actualHeight - 8);
     setMenuPos((prev) => (prev && Math.abs(prev.top - top) > 1 ? { ...prev, top } : prev));
   }, [open, openDirection, expandedSection, menuPos]);
 
