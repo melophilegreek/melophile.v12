@@ -253,6 +253,20 @@ function SortMenu({ sortBy, sortDir, accentColor, onChange }: {
     setTimeout(() => document.addEventListener('mousedown', h), 0);
     return () => document.removeEventListener('mousedown', h);
   }, [open]);
+  // FIX (menu stuck open while the song list scrolls behind it): this
+  // menu is absolutely positioned relative to its own button, which
+  // doesn't move when the (virtualized) song list underneath scrolls, so
+  // it just stayed floating in place over whatever scrolled into view.
+  // Scroll events don't bubble to a plain document listener, so listen in
+  // the capture phase (which does see scroll events from any descendant
+  // scrollable container) and close as soon as scrolling starts, matching
+  // the fix already used for the Player Bar's own popovers.
+  useEffect(() => {
+    if (!open) return;
+    const scrollClose = () => setOpen(false);
+    window.addEventListener('scroll', scrollClose, true);
+    return () => window.removeEventListener('scroll', scrollClose, true);
+  }, [open]);
   const options: { key: SortKey; label: string }[] = [
     { key: 'title', label: 'Title' }, { key: 'artist', label: 'Artist' },
     { key: 'dateAdded', label: 'Date added' }, { key: 'duration', label: 'Duration' },
