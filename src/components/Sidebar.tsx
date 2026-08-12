@@ -49,7 +49,7 @@ export function Sidebar({
         style={active
           ? { background: `linear-gradient(90deg, ${accentColor}20, ${accentColor}08)`, color: accentColor, boxShadow: `0 0 0 1px ${accentColor}25 inset` }
           : { color: 'rgb(var(--fg-rgb) / 0.65)' }}
-        onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = 'white'; }}
+        onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = 'rgb(var(--fg-rgb))'; }}
         onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = 'rgb(var(--fg-rgb) / 0.65)'; }}
       >
         {/* Feature (Premium UI pass): a thin glowing bar on the active item
