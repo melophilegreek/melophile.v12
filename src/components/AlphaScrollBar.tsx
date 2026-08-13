@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { Song } from '../types';
 import type { VirtualListHandle } from './VirtualList';
+import { getContrastText } from '../lib/color';
 
 const LETTERS = ['#','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
 
@@ -152,9 +153,9 @@ export function AlphaScrollBar({ songs, accentColor, listRef, indexOffset = 0 }:
             width: 72,
             height: 72,
             fontSize: 32,
-            color: 'rgb(var(--fg-rgb))',
-            backgroundColor: 'rgb(var(--elevated-rgb) / 0.95)',
-            boxShadow: '0 8px 24px rgb(0 0 0 / 0.35)',
+            color: getContrastText(accentColor),
+            backgroundColor: accentColor,
+            boxShadow: `0 8px 24px -4px ${accentColor}80`,
             backdropFilter: 'blur(6px)',
           }}
         >
