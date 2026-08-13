@@ -102,9 +102,19 @@ export function AlphaScrollBar({ songs, accentColor, listRef, indexOffset = 0 }:
 
   return (
     <>
+      {/* FIX (letters past "U" hidden behind the Player Bar): this used to be
+          a fixed-height (w-7 h-7) row per letter inside an overflow-y-auto
+          container, relying on the user being able to swipe the strip itself
+          to reach whatever didn't fit. Dragging needs `touch-action: none`
+          on this element to stop the page from scrolling underneath a
+          scrub gesture, but that also blocks that swipe-to-reveal, so
+          anything past the visible height became unreachable. Fixed by
+          giving every letter `flex-1` instead of a fixed height: all 27
+          always divide the *actual* available height evenly, so nothing
+          overflows and there's nothing to scroll in the first place. */}
       <div
         ref={containerRef}
-        className="shrink-0 flex flex-col items-center py-2 select-none z-10 h-full min-h-0 overflow-y-auto overflow-x-hidden pr-0.5 touch-none"
+        className="shrink-0 flex flex-col items-stretch py-2 select-none z-10 h-full min-h-0 touch-none"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endDrag}
@@ -116,7 +126,7 @@ export function AlphaScrollBar({ songs, accentColor, listRef, indexOffset = 0 }:
           return (
             <div
               key={letter}
-              className="w-7 h-7 shrink-0 flex items-center justify-center text-xs font-bold rounded transition-colors leading-none"
+              className="flex-1 min-h-0 w-6 flex items-center justify-center text-[10px] font-bold rounded-sm transition-colors leading-none"
               style={{
                 color: hasMatch ? accentColor : 'rgb(var(--fg-rgb) / 0.2)',
                 backgroundColor: isActive ? 'rgb(var(--fg-rgb) / 0.12)' : 'transparent',
