@@ -275,11 +275,11 @@ function SortMenu({ sortBy, sortDir, accentColor, onChange }: {
   return (
     <div ref={ref} className="relative shrink-0">
       <button onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full bg-fg/5 hover:bg-fg/10 transition-colors text-fg/60">
-        <ArrowUpDown size={12} /> Sort
+        className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-full bg-fg/5 hover:bg-fg/10 transition-colors text-fg/60">
+        <ArrowUpDown size={14} /> Sort
       </button>
       {open && (
-        <div className="absolute top-9 right-0 w-44 rounded-xl overflow-hidden shadow-2xl border border-fg/10 z-50 p-1 animate-fade-in"
+        <div className="absolute top-11 right-0 w-44 rounded-xl overflow-hidden shadow-2xl border border-fg/10 z-50 p-1 animate-fade-in"
           style={{ background: 'linear-gradient(180deg, rgb(var(--fg-rgb) / 0.05), rgb(var(--fg-rgb) / 0) 30%), rgb(var(--surface-rgb) / 0.96)', backdropFilter: 'blur(16px)' }}>
           {options.map((opt) => (
             <button key={opt.key}
