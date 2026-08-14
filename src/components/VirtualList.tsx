@@ -14,6 +14,13 @@ interface Props<T> {
    * row alongside regular ROW_HEIGHT song rows.
    */
   getItemHeight?: (item: T, index: number) => number;
+  /**
+   * Feature (collapsing header on scroll): fires on every scroll event
+   * with the container's current scrollTop, so a parent can track scroll
+   * direction (e.g. to hide/show a header bar) without needing its own
+   * ref into this list's internal scroll container.
+   */
+  onScroll?: (scrollTop: number) => void;
 }
 
 export interface VirtualListHandle {
@@ -36,7 +43,7 @@ function findRowIndex(offsets: number[], y: number): number {
 }
 
 function VirtualListInner<T>(
-  { items, renderItem, className, getItemHeight }: Props<T>,
+  { items, renderItem, className, getItemHeight, onScroll }: Props<T>,
   ref: React.Ref<VirtualListHandle>,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,8 +60,12 @@ function VirtualListInner<T>(
   }, []);
 
   const handleScroll = useCallback(() => {
-    if (containerRef.current) setScrollTop(containerRef.current.scrollTop);
-  }, []);
+    if (containerRef.current) {
+      const top = containerRef.current.scrollTop;
+      setScrollTop(top);
+      onScroll?.(top);
+    }
+  }, [onScroll]);
 
   // Running-total offsets array (length items.length + 1). When every row
   // is the fixed ROW_HEIGHT (no getItemHeight passed) this is just
@@ -79,7 +90,6 @@ function VirtualListInner<T>(
     },
     getScrollTop() { return containerRef.current?.scrollTop ?? 0; },
   }), [offsets]);
-
   const totalHeight = offsets[offsets.length - 1] ?? 0;
   const startIdx = Math.max(0, findRowIndex(offsets, scrollTop) - OVERSCAN);
   const endIdx = Math.min(items.length, findRowIndex(offsets, scrollTop + containerHeight) + 1 + OVERSCAN);

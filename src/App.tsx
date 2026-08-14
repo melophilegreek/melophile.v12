@@ -522,6 +522,24 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rescanInputRef = useRef<HTMLInputElement>(null);
 
+  // Feature (collapsing header on scroll): the top header (Library title +
+  // search + import icon) and the toolbar row beneath it (song count +
+  // Sort, or the playlist/most-played toolbar) hide together as one unit
+  // once the list is scrolled down a bit, and reappear on any small
+  // scroll-up -- so getting back to them doesn't need scrolling all the
+  // way to the top. Threshold-based rather than a plain "last direction"
+  // check so tiny jitter from momentum scrolling doesn't flicker it.
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const headerScrollRef = useRef(0);
+  const handleListScroll = useCallback((scrollTop: number) => {
+    const last = headerScrollRef.current;
+    const delta = scrollTop - last;
+    headerScrollRef.current = scrollTop;
+    if (scrollTop <= 16) { setHeaderVisible(true); return; }
+    if (delta > 8) setHeaderVisible(false);
+    else if (delta < -4) setHeaderVisible(true);
+  }, []);
+
   const loadAll = useCallback(async () => {
     const [allSongs, liked, pinned, pls, prefs, hist] = await Promise.all([
       getAllSongs(), getLikedIds(), getPinnedIds(), getPlaylists(), getPreferences(), getHistory(50),
@@ -1679,6 +1697,15 @@ export default function App() {
 
           {/* Main content */}
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+            {/* Feature (collapsing header on scroll): Header + song-list
+                toolbar row collapse together as one unit. The CSS grid
+                "0fr/1fr" trick animates a smooth height without needing a
+                measured pixel value (both rows change height across
+                breakpoints and view states), and the inner overflow-hidden
+                clips content during the transition. */}
+            <div className="shrink-0 grid transition-[grid-template-rows] duration-300 ease-in-out"
+              style={{ gridTemplateRows: headerVisible ? '1fr' : '0fr' }}>
+              <div className="overflow-hidden">
             {/* Header */}
             <div className="flex items-center gap-2 px-3 md:px-4 pt-3 pb-2 shrink-0" style={{ borderBottom: '1px solid rgb(var(--fg-rgb) / 0.06)' }}>
               <button className="md:hidden btn-icon w-9 h-9 hover:bg-fg/8 shrink-0" onClick={() => setSidebarOpen(true)}>
@@ -1764,6 +1791,8 @@ export default function App() {
                 )}
               </div>
             </div>
+              </div>
+            </div>
 
             {/* Import / rescan progress.
                 FIX (rescan progress not visible): this bar already covered
@@ -1844,6 +1873,14 @@ export default function App() {
             ) : (
               /* ── SONG LIST VIEWS ── */
               <>
+                {/* Feature (collapsing header on scroll, cont'd): this
+                    toolbar row collapses in lockstep with the Header above
+                    -- only one of the three variants below is ever
+                    rendered at a time, so wrapping all three together is
+                    equivalent to wrapping "whichever one is showing". */}
+                <div className="shrink-0 grid transition-[grid-template-rows] duration-300 ease-in-out"
+                  style={{ gridTemplateRows: headerVisible ? '1fr' : '0fr' }}>
+                  <div className="overflow-hidden">
                 {/* Playlist toolbar */}
                 {currentPlaylist && !selectionMode && (
                   <div className="flex items-center gap-2 px-4 py-2 shrink-0" style={{ borderBottom: '1px solid rgb(var(--fg-rgb) / 0.06)' }}>
@@ -1904,6 +1941,8 @@ export default function App() {
                     <SortMenu sortBy={sortBy} sortDir={sortDir} accentColor={accentColor} onChange={handleSortChange} />
                   </div>
                 )}
+                  </div>
+                </div>
 
                 {/* Feature (Bulk multi-select actions): replaces whichever
                     toolbar row above would normally be showing. */}
@@ -1937,7 +1976,7 @@ export default function App() {
                     </div>
                   ) : (
                     <>
-                      <VirtualList ref={listRef} items={rows} className="flex-1"
+                      <VirtualList ref={listRef} items={rows} className="flex-1" onScroll={handleListScroll}
                         getItemHeight={(row) => row.kind === 'header' ? PINNED_HEADER_HEIGHT : ROW_HEIGHTS[rowSize]}
                         renderItem={(row) => row.kind === 'header' ? (
                           <div key={row.id} className="h-full flex items-end px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-fg/35"
