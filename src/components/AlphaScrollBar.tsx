@@ -70,17 +70,30 @@ export function AlphaScrollBar({ songs, accentColor, listRef, indexOffset = 0 }:
     // responsive), independent of whether that exact letter has matches.
     setBubbleY(rect.top + (rawIdx + 0.5) * rowH);
 
-    const letter = nearestAvailableLetter(letterIndex, rawIdx);
-    if (!letter || letter === activeLetterRef.current) return;
-    activeLetterRef.current = letter;
-    setActiveLetter(letter);
-    const idx = letterIndex.get(letter);
-    if (idx !== undefined) listRef.current?.scrollToIndex(idx + indexOffset);
-    // Subtle per-letter tick, mirroring Poweramp's haptic feedback while
-    // scrubbing. No-op (and harmless) on devices/browsers without it.
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      try { navigator.vibrate(8); } catch { /* unsupported, ignore */ }
+    // FIX (X/Z -- letters at the tail of the alphabet with no matches --
+    // never appearing in the bubble or strip highlight): this used to set
+    // activeLetter to the *nearest available* letter, so e.g. touching "X"
+    // (no matches) silently relabeled itself "W" and the highlight jumped
+    // there too -- visually indistinguishable from the touch not
+    // registering at all. The bubble/highlight now always reflects the
+    // raw letter under the finger, matches or not (Poweramp does the
+    // same); only the actual scroll target falls back to the nearest
+    // letter that has a match.
+    const rawLetter = LETTERS[rawIdx];
+    if (rawLetter !== activeLetterRef.current) {
+      activeLetterRef.current = rawLetter;
+      setActiveLetter(rawLetter);
+      // Subtle per-letter tick, mirroring Poweramp's haptic feedback while
+      // scrubbing. No-op (and harmless) on devices/browsers without it.
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(8); } catch { /* unsupported, ignore */ }
+      }
     }
+
+    const target = nearestAvailableLetter(letterIndex, rawIdx);
+    if (!target) return;
+    const idx = letterIndex.get(target);
+    if (idx !== undefined) listRef.current?.scrollToIndex(idx + indexOffset);
   }, [letterIndex, listRef, indexOffset]);
 
   const endDrag = useCallback(() => {
