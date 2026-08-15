@@ -3,7 +3,7 @@ import type { Song } from '../types';
 import type { VirtualListHandle } from './VirtualList';
 import { getContrastText } from '../lib/color';
 
-const LETTERS = ['#','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
+const LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','#'];
 
 function getLetterKey(title: string): string {
   const c = title.trim().charAt(0).toUpperCase();
