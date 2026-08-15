@@ -527,17 +527,21 @@ export default function App() {
   // Sort, or the playlist/most-played toolbar) hide together as one unit
   // once the list is scrolled down a bit, and reappear on any small
   // scroll-up -- so getting back to them doesn't need scrolling all the
-  // way to the top. Threshold-based rather than a plain "last direction"
-  // check so tiny jitter from momentum scrolling doesn't flicker it.
+  // way to the top.
+  //
+  // FIX (not collapsing on a slow scroll): comparing consecutive scroll
+  // events' deltas meant a slow drag -- lots of tiny events, each moving
+  // only a pixel or two -- never crossed the threshold on any single
+  // event, even though the total movement did. Track distance from an
+  // "anchor" scrollTop (set only when we actually flip visibility)
+  // instead, so slow scrolling accumulates correctly.
   const [headerVisible, setHeaderVisible] = useState(true);
-  const headerScrollRef = useRef(0);
+  const headerAnchorRef = useRef(0);
   const handleListScroll = useCallback((scrollTop: number) => {
-    const last = headerScrollRef.current;
-    const delta = scrollTop - last;
-    headerScrollRef.current = scrollTop;
-    if (scrollTop <= 16) { setHeaderVisible(true); return; }
-    if (delta > 8) setHeaderVisible(false);
-    else if (delta < -4) setHeaderVisible(true);
+    if (scrollTop <= 16) { setHeaderVisible(true); headerAnchorRef.current = scrollTop; return; }
+    const diff = scrollTop - headerAnchorRef.current;
+    if (diff > 24) { setHeaderVisible(false); headerAnchorRef.current = scrollTop; }
+    else if (diff < -8) { setHeaderVisible(true); headerAnchorRef.current = scrollTop; }
   }, []);
 
   const loadAll = useCallback(async () => {
@@ -2038,7 +2042,15 @@ export default function App() {
             visible and tappable -- while the overlay's dark/blurred backdrop
             fills in uniformly behind the bar's rounded corners instead of the
             library view showing through them. */}
-        <div data-player-bar-root className="relative z-[60] h-[176px] md:h-[84px] shrink-0 px-2 pb-2">
+        {/* Feature (mini player bar auto-hide on scroll): collapses/reappears
+            in lockstep with the header above (same `headerVisible` state and
+            scroll thresholds), using the same CSS grid-rows trick so it
+            doesn't need a measured pixel height across the mobile/desktop
+            height difference. */}
+        <div className="shrink-0 grid transition-[grid-template-rows] duration-300 ease-in-out"
+          style={{ gridTemplateRows: headerVisible ? '1fr' : '0fr' }}>
+          <div className="overflow-hidden">
+        <div data-player-bar-root className="relative z-[60] h-[176px] md:h-[84px] px-2 pb-2">
           <PlayerBar
             currentSong={playerState.currentSong}
             artUrl={artUrl}
@@ -2073,6 +2085,8 @@ export default function App() {
             onSetPlaybackRate={(r) => { player.setPlaybackRate(r); savePreferences({ playbackRate: r }); }}
             onSetPreservePitch={(p) => { player.setPreservePitch(p); savePreferences({ preservePitch: p }); }}
           />
+        </div>
+          </div>
         </div>
       </div>
 
