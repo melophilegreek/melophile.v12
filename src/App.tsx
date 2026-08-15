@@ -2042,15 +2042,7 @@ export default function App() {
             visible and tappable -- while the overlay's dark/blurred backdrop
             fills in uniformly behind the bar's rounded corners instead of the
             library view showing through them. */}
-        {/* Feature (mini player bar auto-hide on scroll): collapses/reappears
-            in lockstep with the header above (same `headerVisible` state and
-            scroll thresholds), using the same CSS grid-rows trick so it
-            doesn't need a measured pixel height across the mobile/desktop
-            height difference. */}
-        <div className="shrink-0 grid transition-[grid-template-rows] duration-300 ease-in-out"
-          style={{ gridTemplateRows: headerVisible ? '1fr' : '0fr' }}>
-          <div className="overflow-hidden">
-        <div data-player-bar-root className="relative z-[60] h-[176px] md:h-[84px] px-2 pb-2">
+        <div data-player-bar-root className="relative z-[60] h-[176px] md:h-[84px] shrink-0 px-2 pb-2">
           <PlayerBar
             currentSong={playerState.currentSong}
             artUrl={artUrl}
@@ -2085,8 +2077,6 @@ export default function App() {
             onSetPlaybackRate={(r) => { player.setPlaybackRate(r); savePreferences({ playbackRate: r }); }}
             onSetPreservePitch={(p) => { player.setPreservePitch(p); savePreferences({ preservePitch: p }); }}
           />
-        </div>
-          </div>
         </div>
       </div>
 
